@@ -5,6 +5,10 @@ WORKDIR /workspace
 all:
   COPY (+build/tlshd-go --GOARCH=amd64) ./dist/tlshd-go-linux-amd64
   COPY (+build/tlshd-go --GOARCH=arm64) ./dist/tlshd-go-linux-arm64
+  RUN cd dist && find . -type f -exec sha256sum {} \; >> ../checksums.txt
+  SAVE ARTIFACT ./dist/tlshd-go-linux-amd64 AS LOCAL dist/tlshd-go-linux-amd64
+  SAVE ARTIFACT ./dist/tlshd-go-linux-arm64 AS LOCAL dist/tlshd-go-linux-arm64
+  SAVE ARTIFACT ./checksums.txt AS LOCAL dist/checksums.txt
 
 build:
   ARG GOOS=linux
