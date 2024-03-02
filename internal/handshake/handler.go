@@ -21,6 +21,7 @@
 package handshake
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -29,7 +30,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dpeckett/tlshd-go/internal/tls"
+	"github.com/dpeckett/ktls/tls"
+	"github.com/dpeckett/tlshd-go/internal/keyring"
 
 	"github.com/mdlayher/genetlink"
 	"github.com/mdlayher/netlink"
@@ -50,7 +52,7 @@ func NewHandler(logger *slog.Logger, tlsConfig *tls.Config) *Handler {
 }
 
 // Handle handles a handshake request from the kernel.
-func (h *Handler) Handle(msg *genetlink.Message) error {
+func (h *Handler) Handle(ctx context.Context, msg *genetlink.Message) error {
 	h.logger.Info("Received handshake request")
 
 	// Is the request valid and intended for the TLS handshake service?
@@ -122,9 +124,9 @@ func (h *Handler) Handle(msg *genetlink.Message) error {
 
 	switch params.HandshakeType {
 	case HandshakeMsgTypeClientHello:
-		err = h.handleClientHello(params)
+		err = h.handleClientHello(ctx, params)
 	case HandshakeMsgTypeServerHello:
-		err = h.handleServerHello(params)
+		err = h.handleServerHello(ctx, params)
 	default:
 		err = fmt.Errorf("unrecognized handshake type: %d", params.HandshakeType)
 	}
@@ -177,6 +179,20 @@ func (h *Handler) Handle(msg *genetlink.Message) error {
 	return nil
 }
 
+type HandshakeParams struct {
+	PeerName      string
+	PeerAddr      net.Addr
+	SockFD        int32
+	Conn          net.Conn
+	HandshakeType HandshakeMsgType
+	Timeout       time.Duration
+	AuthMode      HandshakeAuth
+	X509Cert      keyring.KeySerial
+	X509PrivKey   keyring.KeySerial
+	PeerIDs       []keyring.KeySerial
+	RemotePeerIDs []keyring.KeySerial
+}
+
 func (h *Handler) decodeParams(msg *genetlink.Message) (*HandshakeParams, error) {
 	ad, err := netlink.NewAttributeDecoder(msg.Data)
 	if err != nil {
@@ -215,16 +231,16 @@ func (h *Handler) decodeParams(msg *genetlink.Message) (*HandshakeParams, error)
 		case HandshakeAAcceptAuthMode:
 			params.AuthMode = HandshakeAuth(ad.Uint32())
 		case HandshakeAAcceptPeerIdentity:
-			params.PeerIDs = append(params.PeerIDs, KeySerial(ad.Int32()))
+			params.PeerIDs = append(params.PeerIDs, keyring.KeySerial(ad.Int32()))
 		case HandshakeAAcceptCertificate:
 			ad.Nested(func(ad *netlink.AttributeDecoder) error {
 				for ad.Next() {
 					fmt.Println(ad.Type())
 					switch ad.Type() {
 					case HandshakeAX509Cert:
-						params.X509Cert = KeySerial(ad.Int32())
+						params.X509Cert = keyring.KeySerial(ad.Int32())
 					case HandshakeAX509PrivKey:
-						params.X509PrivKey = KeySerial(ad.Int32())
+						params.X509PrivKey = keyring.KeySerial(ad.Int32())
 					default:
 						return fmt.Errorf("unknown certificate attribute type: %d", ad.Type())
 					}

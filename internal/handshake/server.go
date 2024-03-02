@@ -21,13 +21,96 @@
 package handshake
 
 import (
+	"context"
 	"fmt"
+
+	"github.com/dpeckett/ktls"
+	"github.com/dpeckett/ktls/tls"
+	"github.com/dpeckett/tlshd-go/internal/keyring"
 )
 
-func (h *Handler) handleServerHello(_ *HandshakeParams) error {
+func (h *Handler) handleServerHello(ctx context.Context, params *HandshakeParams) error {
 	h.logger.Info("Handling server hello")
 
-	// TODO: implement server hello handling
+	switch params.AuthMode {
+	case HandshakeAuthUnauth, HandshakeAuthX509:
+		return h.handleServerX509Handshake(ctx, params)
+	case HandshakeAuthPSK:
+		return fmt.Errorf("TLS PSK is not supported by Go")
+	default:
+		return fmt.Errorf("unrecognized auth mode: %d", params.AuthMode)
+	}
+}
 
-	return fmt.Errorf("server hello handling not yet implemented")
+func (h *Handler) handleServerX509Handshake(ctx context.Context, params *HandshakeParams) error {
+	h.logger.Info("Performing server X.509 TLS handshake")
+
+	tlsConfig := h.tlsConfig.Clone()
+
+	var certPEM, keyPEM []byte
+	if params.X509Cert != TLSNoCert {
+		var err error
+		certPEM, err = keyring.GetCertificate(params.X509Cert)
+		if err != nil {
+			return fmt.Errorf("failed to get certificate: %w", err)
+		}
+	}
+
+	if params.X509PrivKey != TLSNoPrivKey {
+		var err error
+		keyPEM, err = keyring.GetPrivateKey(params.X509PrivKey)
+		if err != nil {
+			return fmt.Errorf("failed to get private key: %w", err)
+		}
+	}
+
+	if len(certPEM) > 0 && len(keyPEM) > 0 {
+		serverCert, err := tls.X509KeyPair(certPEM, keyPEM)
+		if err != nil {
+			return fmt.Errorf("failed to create X.509 key pair: %w", err)
+		}
+
+		tlsConfig.Certificates = []tls.Certificate{serverCert}
+	}
+
+	tlsConn := tls.Server(params.Conn, tlsConfig)
+
+	handshakeCtx := ctx
+	if params.Timeout > 0 {
+		var cancel context.CancelFunc
+		handshakeCtx, cancel = context.WithTimeout(ctx, params.Timeout)
+		defer cancel()
+	}
+
+	if err := tlsConn.HandshakeContext(handshakeCtx); err != nil {
+		return fmt.Errorf("TLS handshake failed: %w", err)
+	}
+
+	h.logger.Info("TLS handshake complete")
+
+	state := tlsConn.ConnectionState()
+	for i, cert := range state.PeerCertificates {
+		// The kernel only supports 10 certificates in the chain.
+		if i >= 10 {
+			h.logger.Warn("Peer certificate chain truncated, more than 10 certificates")
+			break
+		}
+
+		remotePeerID, err := keyring.CreateCertificate(cert, params.PeerName)
+		if err != nil {
+			return fmt.Errorf("failed to create certificate: %w", err)
+		}
+
+		params.RemotePeerIDs = append(params.RemotePeerIDs, remotePeerID)
+	}
+
+	h.logger.Info("Enabling kernel TLS")
+
+	if err := ktls.Enable(tlsConn); err != nil {
+		h.logger.Error("Failed to enable kernel TLS", "error", err)
+
+		return fmt.Errorf("failed to enable kernel TLS: %w", err)
+	}
+
+	return nil
 }

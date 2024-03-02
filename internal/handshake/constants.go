@@ -23,6 +23,7 @@ package handshake
 const (
 	HandshakeFamilyName    = "handshake"
 	HandshakeFamilyVersion = 1
+	HandshakeMCGroupTLSHD  = "tlshd"
 )
 
 type HandshakeHandlerClass int
@@ -40,17 +41,6 @@ const (
 	HandshakeMsgTypeServerHello
 )
 
-func (t HandshakeMsgType) String() string {
-	switch t {
-	case HandshakeMsgTypeClientHello:
-		return "ClientHello"
-	case HandshakeMsgTypeServerHello:
-		return "ServerHello"
-	default:
-		return "Unknown"
-	}
-}
-
 type HandshakeAuth int
 
 const (
@@ -59,19 +49,6 @@ const (
 	HandshakeAuthPSK
 	HandshakeAuthX509
 )
-
-func (a HandshakeAuth) String() string {
-	switch a {
-	case HandshakeAuthUnauth:
-		return "Unauthenticated"
-	case HandshakeAuthPSK:
-		return "Pre-shared key"
-	case HandshakeAuthX509:
-		return "X.509"
-	default:
-		return "Unknown"
-	}
-}
 
 const (
 	HandshakeAX509Cert = iota + 1
@@ -102,12 +79,6 @@ const (
 )
 
 const (
-	HandshakeMCGroupNone  = "none"
-	HandshakeMCGroupTLSHD = "tlshd"
-)
-
-const (
 	TLSNoCert    = 0
 	TLSNoPrivKey = 0
-	TLSNoPeerID  = 0
 )

@@ -26,7 +26,9 @@ jobs:
       run: earthly +build
 
     - name: Test
-      run: earthly +test
+      run: |
+        modprobe tls
+        earthly -P +test
   
   release:
     needs: build-and-test

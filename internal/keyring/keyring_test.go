@@ -18,25 +18,26 @@
  * 02110-1301, USA.
  */
 
-package handshake
+package keyring_test
 
 import (
-	"net"
-	"time"
+	"crypto/x509"
+	"testing"
+
+	"github.com/dpeckett/tlshd-go/internal/keyring"
+	"github.com/dpeckett/tlshd-go/internal/util"
+	"github.com/stretchr/testify/require"
 )
 
-type KeySerial int32
+func TestCreateCertificate(t *testing.T) {
+	cert, err := util.GenerateSelfSignedCert()
+	require.NoError(t, err)
 
-type HandshakeParams struct {
-	PeerName      string
-	PeerAddr      net.Addr
-	SockFD        int32
-	Conn          net.Conn
-	HandshakeType HandshakeMsgType
-	Timeout       time.Duration
-	AuthMode      HandshakeAuth
-	X509Cert      KeySerial
-	X509PrivKey   KeySerial
-	PeerIDs       []KeySerial
-	RemotePeerIDs []KeySerial
+	x509Cert, err := x509.ParseCertificate(cert.Certificate[0])
+	require.NoError(t, err)
+
+	serial, err := keyring.CreateCertificate(x509Cert, "localhost")
+	require.NoError(t, err)
+
+	require.NotZero(t, serial)
 }
