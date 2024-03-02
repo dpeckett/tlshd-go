@@ -21,8 +21,10 @@
 package handshake
 
 import (
-	"crypto/tls"
 	"fmt"
+
+	"github.com/dpeckett/tlshd-go/internal/ktls"
+	"github.com/dpeckett/tlshd-go/internal/tls"
 )
 
 func (h *Handler) handleClientHello(params *HandshakeParams) error {
@@ -73,13 +75,15 @@ func (h *Handler) handleClientX509Handshake(params *HandshakeParams) error {
 	tlsConfig.ServerName = params.PeerName
 
 	tlsConn := tls.Client(params.Conn, tlsConfig)
+
 	if err := tlsConn.Handshake(); err != nil {
 		return fmt.Errorf("TLS handshake failed: %w", err)
 	}
 
-	h.logger.Info("TLS handshake succeeded")
+	h.logger.Info("TLS handshake complete")
 
-	for i, cert := range tlsConn.ConnectionState().PeerCertificates {
+	state := tlsConn.ConnectionState()
+	for i, cert := range state.PeerCertificates {
 		// The kernel datastructure only supports 10 certificates in the chain.
 		if i >= 10 {
 			h.logger.Warn("Peer certificate chain truncated, more than 10 certificates")
@@ -92,6 +96,14 @@ func (h *Handler) handleClientX509Handshake(params *HandshakeParams) error {
 		}
 
 		params.RemotePeerIDs = append(params.RemotePeerIDs, remotePeerID)
+	}
+
+	h.logger.Info("Enabling kernel TLS")
+
+	if err := ktls.Enable(params.SockFD, tlsConn); err != nil {
+		h.logger.Error("Failed to enable kernel TLS", "error", err)
+
+		return fmt.Errorf("failed to enable kernel TLS: %w", err)
 	}
 
 	return nil

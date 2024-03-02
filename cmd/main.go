@@ -21,7 +21,6 @@
 package main
 
 import (
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -30,7 +29,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/dpeckett/tlshd-go/handshake"
+	"github.com/dpeckett/tlshd-go/internal/handshake"
+	"github.com/dpeckett/tlshd-go/internal/tls"
 	"github.com/urfave/cli/v2"
 )
 
@@ -58,6 +58,20 @@ func main() {
 			// TODO: read the tls configuration from a file.
 			tlsConfig := &tls.Config{
 				InsecureSkipVerify: true,
+				MinVersion:         tls.VersionTLS12,
+				CipherSuites: []uint16{
+					// A secure subset of TLS 1.2 ciphers suites supported by the Linux kernel.
+					tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+					tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+					tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+					tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+					tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+					tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+					tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+					tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+					// Customizing TLS 1.3 ciphers is not supported: https://github.com/golang/go/issues/29349
+					// This is fine as all the ciphers have excellent security properties and are supported by the Linux kernel.
+				},
 			}
 
 			h := handshake.NewHandler(logger, tlsConfig)

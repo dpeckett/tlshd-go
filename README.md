@@ -1,7 +1,21 @@
 # tlshd-go
 
-A Linux kernel TLS handshake daemon written in Go. 
+A Linux kernel TLS handshake daemon written in Go. Given we are offloading TLS handshakes to user-space anyway, we might as well perform them using a memory-safe language.
 
-Given we are offloading TLS handshakes to user-space anyway, we might as well perform them using a memory-safe language.
+Right now tlshd-go is a very experimental proof of concept and only supports X.509 based client handshakes.
 
-Right now tlshd-go is a very experimental proof of concept and only currently support X.509 based client handshakes. It is not recommended for production use.
+## Building
+
+You'll need the excellent [Earthly](https://earthly.dev/) build tool to build this project.
+
+```bash
+earthly +build
+```
+
+## Running
+
+You'll need to run the TLS handshake daemon as root.
+
+```bash
+sudo ./dist/tlshd-go-linux-amd64
+```

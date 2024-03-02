@@ -21,7 +21,6 @@
 package handshake
 
 import (
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -29,6 +28,8 @@ import (
 	"os"
 	"syscall"
 	"time"
+
+	"github.com/dpeckett/tlshd-go/internal/tls"
 
 	"github.com/mdlayher/genetlink"
 	"github.com/mdlayher/netlink"
